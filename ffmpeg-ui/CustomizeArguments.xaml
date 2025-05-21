@@ -1,0 +1,38 @@
+﻿<ui:ContentDialog x:Class="ffmpeg_ui.CustomizeArguments"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+      xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
+      xmlns:local="clr-namespace:ffmpeg_ui"
+      DefaultButton="Primary"
+      PrimaryButtonClick="OnPrimaryButtonClick"
+      PrimaryButtonText="Apply"
+      SecondaryButtonClick="OnSecondaryButtonClick"
+      SecondaryButtonText="Cancel"
+      mc:Ignorable="d" 
+      d:DesignHeight="450" d:DesignWidth="800"
+      Title="Customize">
+    <Grid>
+        <ui:ScrollViewerEx>
+            <StackPanel CanVerticallyScroll="True" CanHorizontallyScroll="False">
+                <Label Content="Accelerator:" Margin="0,0,0,5"/>
+                <StackPanel>
+                    <RadioButton Content="- Hardware Acceleration (NVIDIA)"/>
+                    <RadioButton Content="- Hardware Acceleration (AMD)"/>
+                    <RadioButton Content="- Software Acceleration"/>
+                </StackPanel>
+                <Label Content="Codec Options:" Margin="0,5,0,5"/>
+                <StackPanel>
+                    <RadioButton Content="- H264"/>
+                    <RadioButton Content="- HEVC (H265)"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                    <Label Content="Bitrate (M)" VerticalAlignment="Center"/>
+                    <TextBox Width="219" Margin="10,0,0,0" PreviewTextInput="PreviewTextInput" DataObject.Pasting="TextBoxPasting"/>
+                </StackPanel>
+            </StackPanel>
+        </ui:ScrollViewerEx>
+        
+    </Grid>
+</ui:ContentDialog>
