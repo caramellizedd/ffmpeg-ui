@@ -3,6 +3,7 @@ using FFmpeg.NET.Enums;
 using iNKORE.UI.WPF.Modern;
 using iNKORE.UI.WPF.Modern.Controls;
 using Microsoft.Win32;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -13,9 +14,12 @@ using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using Windows.Media.Streaming.Adaptive;
 
 namespace ffmpeg_ui;
 
@@ -24,8 +28,10 @@ namespace ffmpeg_ui;
 /// </summary>
 public partial class MainWindow : Window
 {
+    public static MainWindow instance;
     public MainWindow()
     {
+        instance = this;
         InitializeComponent();
         checkExportConditions();
     }
@@ -33,6 +39,8 @@ public partial class MainWindow : Window
     // Arguments
     bool amdAccel = false;
     bool nvidiaAccel = false;
+    int codecTypeID = 0;
+    float bitrate = 5;
     private void Window_ActualThemeChanged(object sender, RoutedEventArgs e)
     {
         if (ThemeManager.Current.ActualApplicationTheme == ApplicationTheme.Dark)
@@ -106,21 +114,41 @@ public partial class MainWindow : Window
 
     private async void exportButton_Click(object sender, RoutedEventArgs e)
     {
-        string options = "";
-        if (options == "")
-            options = "convert only";
-        ContentDialog confirmDialog = new ContentDialog()
+        string input = inPath.Text.Replace("\"", "");
+        string output = outPath.Text.Replace("\"", "");
+        StringBuilder options = new StringBuilder();
+        if (amdAccel)
+            options.Append("Acceleration: AMD");
+        else if (nvidiaAccel)
+            options.Append("Acceleration: NVIDIA");
+        else
+            options.Append("Acceleration: CPU (Software)");
+        options.Append("\n");
+        switch (codecTypeID)
         {
-            Title = "Confirmation",
-            Content = "Are you sure you want to do the operation with these options?\n" + options,
-            PrimaryButtonText = "Yes",
-            CloseButtonText = "No"
-        };
+            case 0:
+                options.Append("Codec Type: H264");
+                break;
+            case 1:
+                options.Append("Codec Type: HEVC");
+                break;
+        }
+        options.Append("\n");
+        options.Append("Bitrate: " + bitrate + "M\n");
+        options.Append("Input File: " + inPath.Text);
+        options.Append("\nOutput File: " + outPath.Text);
+        ContentDialog confirmDialog = new ContentDialog()
+            {
+                Title = "Confirmation",
+                Content = "Are you sure you want to do the operation with these options?\n\n" + options,
+                PrimaryButtonText = "Yes",
+                CloseButtonText = "No"
+            };
         if (await confirmDialog.ShowAsync() == ContentDialogResult.Primary)
         {
             var tokenSource = new CancellationTokenSource();
-            var inputFile = new InputFile(inPath.Text);
-            var outputFile = new OutputFile(outPath.Text);
+            var inputFile = new InputFile(input);
+            var outputFile = new OutputFile(output);
             Engine ffmpeg = new Engine(Directory.GetCurrentDirectory() + "\\ffmpeg.exe");
             var conversionOptions = new ConversionOptions
             {
@@ -136,13 +164,187 @@ public partial class MainWindow : Window
                 {
                     HWAccel = HWAccel.cuda
                 };
-
-            await ffmpeg.ConvertAsync(inputFile, outputFile, conversionOptions, tokenSource.Token);
+            switch (codecTypeID)
+            {
+                case 0:
+                    if (amdAccel)
+                        conversionOptions.VideoCodec = VideoCodec.h264_amf;
+                    else if (nvidiaAccel)
+                        conversionOptions.VideoCodec = VideoCodec.nvenc_h264;
+                    else
+                        conversionOptions.VideoCodec = VideoCodec.libx264;
+                    break;
+                case 1:
+                    if (amdAccel)
+                        conversionOptions.VideoCodec = VideoCodec.hevc_amf;
+                    else if (nvidiaAccel)
+                        conversionOptions.VideoCodec = VideoCodec.nvenc_hevc;
+                    else
+                        conversionOptions.VideoCodec = VideoCodec.libx265;
+                    break;
+            }
+            conversionOptions.VideoBitRate = (int)(bitrate * 1000);
+            ffmpeg.Progress += Ffmpeg_Progress;
+            ffmpeg.Complete += Ffmpeg_Complete;
+            ffmpeg.Error += Ffmpeg_Error;
+            showProgress();
+            new Thread(async () =>
+            {
+                await ffmpeg.ConvertAsync(inputFile, outputFile, conversionOptions, tokenSource.Token);
+            }).Start();
         }
     }
 
-    public void startExport()
+    private void Ffmpeg_Error(object? sender, FFmpeg.NET.Events.ConversionErrorEventArgs e)
     {
+        this.Dispatcher.Invoke(async () =>
+        {
+            ContentDialog dialog = new ContentDialog
+            {
+                Title = "Oh nooo!",
+                Content = "The current task failed to execute.\nTry troubleshooting by reading the exception below or contact the developer\n\n" + e.Exception.Message,
+                PrimaryButtonText = "Okay qwq",
+                IsPrimaryButtonEnabled = true
+            };
+            if(await dialog.ShowAsync() == ContentDialogResult.Primary)
+            {
+                closePopupUI();
+            }
+        });
+    }
 
+    private void Ffmpeg_Complete(object? sender, FFmpeg.NET.Events.ConversionCompleteEventArgs e)
+    {
+        status.Dispatcher.Invoke(() =>
+        {
+            status.Content = status.Content + "\nFinished!";
+            progress.Value = 1;
+        });
+    }
+
+    private void Ffmpeg_Progress(object? sender, FFmpeg.NET.Events.ConversionProgressEventArgs e)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.Append(string.Format("File: {0} => {1}\n", e.Input.Name, e.Output.Name));
+        sb.Append(string.Format("Bitrate: {0}\n", e.Bitrate));
+        sb.Append(string.Format("FPS: {0}\n", e.Fps));
+        sb.Append(string.Format("Processed Frame: {0}\n", e.Frame));
+        sb.Append(string.Format("TotalDuration: {0}\n", (int)e.TotalDuration.TotalSeconds));
+        if (amdAccel)
+            sb.Append("Using AMD Acceleration");
+        else if (nvidiaAccel)
+            sb.Append("Using NVIDIA Acceleration");
+        else
+            sb.Append("Using CPU Acceleration");
+        sb.Append("\n");
+        if (codecTypeID == 0)
+            sb.Append("Codec: H264");
+        else if (codecTypeID == 1)
+            sb.Append("Codec: HEVC");
+        status.Dispatcher.Invoke(() =>
+        {
+            progress.Value = (e.ProcessedDuration / e.TotalDuration) % 100;
+            status.Content = sb;
+        });
+    }
+
+    private void closePopup_Click(object sender, RoutedEventArgs e)
+    {
+        closePopupUI();
+    }
+    private void closePopupUI()
+    {
+        main.Visibility = Visibility.Visible;
+        BlurEffect be = new BlurEffect();
+        be.RenderingBias = RenderingBias.Performance;
+        main.Effect = be;
+        ThicknessAnimation ta = new ThicknessAnimation
+        {
+            From = new Thickness(0, 0, 0, 0),
+            To = new Thickness(0, this.Height, 0, 0),
+            Duration = TimeSpan.FromMilliseconds(300),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+        };
+        DoubleAnimation da = new DoubleAnimation
+        {
+            From = 20,
+            To = 0,
+            Duration = TimeSpan.FromMilliseconds(300),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+        };
+        DoubleAnimation daOpacity = new DoubleAnimation
+        {
+            From = 0.3,
+            To = 1,
+            Duration = TimeSpan.FromMilliseconds(300),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+        };
+        be.BeginAnimation(BlurEffect.RadiusProperty, da);
+        main.BeginAnimation(Grid.OpacityProperty, daOpacity);
+        main.IsEnabled = true;
+        popupOnProgress.BeginAnimation(Grid.MarginProperty, ta);
+    }
+    public static void changeSettings(int accelType, int codecType, float specifiedBitrate)
+    {
+        switch (accelType) {
+            case 0:
+                instance.amdAccel = false;
+                instance.nvidiaAccel = false;
+                break;
+            case 1:
+                instance.amdAccel = false;
+                instance.nvidiaAccel = true;
+                break;
+            case 2:
+                instance.amdAccel = true;
+                instance.nvidiaAccel = false;
+                break;
+        }
+        instance.codecTypeID = codecType;
+        instance.bitrate = specifiedBitrate;
+    }
+
+    private void inPath_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        inputFile = true;
+        checkExportConditions();
+    }
+
+    private void outPath_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        outputFile = true;
+        checkExportConditions();
+    }
+
+    public void showProgress()
+    {
+        BlurEffect be = new BlurEffect();
+        be.RenderingBias = RenderingBias.Performance;
+        main.Effect = be;
+        ThicknessAnimation ta = new ThicknessAnimation
+        {
+            From = new Thickness(0, this.Height, 0, 0),
+            To = new Thickness(0, 0, 0, 0),
+            Duration = TimeSpan.FromMilliseconds(300),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        DoubleAnimation da = new DoubleAnimation
+        {
+            From = 0,
+            To = 20,
+            Duration = TimeSpan.FromMilliseconds(300),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        DoubleAnimation daOpacity = new DoubleAnimation
+        {
+            From = 1,
+            To = 0.3,
+            Duration = TimeSpan.FromMilliseconds(300),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        be.BeginAnimation(BlurEffect.RadiusProperty, da);
+        main.BeginAnimation(Grid.OpacityProperty, daOpacity);
+        main.IsEnabled = false;
+        popupOnProgress.BeginAnimation(Grid.MarginProperty, ta);
     }
 }

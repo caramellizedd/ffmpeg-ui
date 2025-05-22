@@ -26,14 +26,36 @@ namespace ffmpeg_ui
         {
             InitializeComponent();
         }
-        private static readonly Regex _regex = new Regex("[^0-9]+"); //regex that matches disallowed text
+        private static readonly Regex _regex = new Regex("[^0-9.]+"); //regex that matches disallowed text
         private static bool IsTextAllowed(string text)
         {
             return !_regex.IsMatch(text);
         }
         private void OnPrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
         {
-
+            int accel = 0;
+            int codec = 0;
+            if ((bool)amdAccel.IsChecked)
+            {
+                accel = int.Parse((string)amdAccel.Tag);
+            }
+            else if ((bool)nvidiaAccel.IsChecked)
+            {
+                accel = int.Parse((string)nvidiaAccel.Tag);
+            }
+            else if ((bool)noAccel.IsChecked)
+            {
+                accel = int.Parse((string)noAccel.Tag);
+            }
+            if ((bool)h264.IsChecked)
+            {
+                codec = int.Parse((string)h264.Tag);
+            }
+            else if ((bool)hevc.IsChecked)
+            {
+                codec = int.Parse((string)hevc.Tag);
+            }
+            MainWindow.changeSettings(accel, codec, float.Parse(bitrate.Text));
         }
 
         private void OnSecondaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)

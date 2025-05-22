@@ -18,18 +18,18 @@
             <StackPanel CanVerticallyScroll="True" CanHorizontallyScroll="False">
                 <Label Content="Accelerator:" Margin="0,0,0,5"/>
                 <StackPanel>
-                    <RadioButton Content="- Hardware Acceleration (NVIDIA)"/>
-                    <RadioButton Content="- Hardware Acceleration (AMD)"/>
-                    <RadioButton Content="- Software Acceleration"/>
+                    <RadioButton x:Name="nvidiaAccel" Content="- Hardware Acceleration (NVIDIA)" Tag="1"/>
+                    <RadioButton x:Name="amdAccel" Content="- Hardware Acceleration (AMD)" Tag="2"/>
+                    <RadioButton x:Name="noAccel" Content="- Software Acceleration (Default)" IsChecked="True" Tag="0"/>
                 </StackPanel>
                 <Label Content="Codec Options:" Margin="0,5,0,5"/>
                 <StackPanel>
-                    <RadioButton Content="- H264"/>
-                    <RadioButton Content="- HEVC (H265)"/>
+                    <RadioButton x:Name="h264" Content="- H264 (Default)" IsChecked="True" Tag="0"/>
+                    <RadioButton x:Name="hevc" Content="- HEVC (H265)" IsChecked="False" Tag="1"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                     <Label Content="Bitrate (M)" VerticalAlignment="Center"/>
-                    <TextBox Width="219" Margin="10,0,0,0" PreviewTextInput="PreviewTextInput" DataObject.Pasting="TextBoxPasting"/>
+                    <TextBox x:Name="bitrate" Text="5" Width="219" Margin="10,0,0,0" PreviewTextInput="PreviewTextInput" DataObject.Pasting="TextBoxPasting"/>
                 </StackPanel>
             </StackPanel>
         </ui:ScrollViewerEx>

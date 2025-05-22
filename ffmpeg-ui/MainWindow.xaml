@@ -12,27 +12,31 @@
         ui:ThemeManager.ActualThemeChanged="Window_ActualThemeChanged"
         Title="ffmpeg-ui" Height="611" Width="989">
     <Grid>
-        <Grid x:Name="main">
+        <Grid x:Name="main" Visibility="Visible">
             <Label Content="FFmpeg but I made a GUI for it" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,52,0,0" FontSize="32" FontFamily="Segoe UI" FontWeight="DemiBold"/>
             <Label Content="Powered by xFFmpeg.NET" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,102,0,0"/>
             <StackPanel Orientation="Vertical" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Label Content="File Path: " Width="100" VerticalAlignment="Center"/>
-                    <TextBox x:Name="inPath" Width="240"/>
+                    <TextBox x:Name="inPath" Width="240" TextChanged="inPath_TextChanged"/>
                     <Button x:Name="openFile" Click="openFile_Click" Content="..." Width="32" Height="32" Margin="5,0,0,0"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Label Content="Output Path: " Width="100" VerticalAlignment="Center"/>
-                    <TextBox x:Name="outPath" Width="240"/>
+                    <TextBox x:Name="outPath" Width="240" TextChanged="outPath_TextChanged"/>
                     <Button x:Name="saveFile" Click="saveFile_Click" Content="..." Width="32" Height="32" Margin="5,0,0,0"/>
                 </StackPanel>
                 <StackPanel Margin="0,10,0,0" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <Label Content="Arguments: " Width="100" VerticalAlignment="Center"/>
-                    <TextBox Width="240" Text="convert only"/>
-                    <Button x:Name="changeArgs" Click="changeArgs_Click" Content="..." Width="32" Height="32" Margin="5,0,0,0"/>
+                    <Button x:Name="changeArgs" Click="changeArgs_Click" Content="Customize ffmpeg settings" Width="378" Height="32"/>
                 </StackPanel>
             </StackPanel>
             <Button x:Name="exportButton" Click="exportButton_Click" Content="Start" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,10,10" Width="128" Height="32"/>
+        </Grid >
+        <Grid x:Name="popupOnProgress" Visibility="Collapsed">
+            <Label Content="Conversion In Progress" HorizontalAlignment="Center" Margin="0,87,0,0" VerticalAlignment="Top" FontSize="32"/>
+            <Label x:Name="status" Content="Setting up the FFmpeg Instance..." HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <Button x:Name="closePopup" Content="Close" Margin="0,470,0,0" VerticalAlignment="Top" HorizontalAlignment="Center" Click="closePopup_Click"/>
+            <ui:ProgressBar x:Name="progress" Maximum="1" Margin="0,250,0,0" Width="340" HorizontalAlignment="Center" VerticalAlignment="Center"/>
         </Grid>
     </Grid>
 </Window>
