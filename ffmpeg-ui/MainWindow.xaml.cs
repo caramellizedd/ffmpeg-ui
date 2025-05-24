@@ -183,7 +183,7 @@ public partial class MainWindow : Window
                         conversionOptions.VideoCodec = VideoCodec.libx265;
                     break;
             }
-            conversionOptions.VideoBitRate = (int)(bitrate * 1000);
+            conversionOptions.VideoBitRate = (int)(bitrate * 1000) - 1000;
             ffmpeg.Progress += Ffmpeg_Progress;
             ffmpeg.Complete += Ffmpeg_Complete;
             ffmpeg.Error += Ffmpeg_Error;
@@ -218,7 +218,9 @@ public partial class MainWindow : Window
         status.Dispatcher.Invoke(() =>
         {
             status.Content = status.Content + "\nFinished!";
+            popupTitle.Content = "Conversion Finished!";
             progress.Value = 1;
+            closePopup.IsEnabled = true;
         });
     }
 
@@ -321,6 +323,8 @@ public partial class MainWindow : Window
         BlurEffect be = new BlurEffect();
         be.RenderingBias = RenderingBias.Performance;
         main.Effect = be;
+        popupOnProgress.Visibility = Visibility.Visible;
+        closePopup.IsEnabled = false;
         ThicknessAnimation ta = new ThicknessAnimation
         {
             From = new Thickness(0, this.Height, 0, 0),

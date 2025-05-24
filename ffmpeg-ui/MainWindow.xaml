@@ -33,7 +33,7 @@
             <Button x:Name="exportButton" Click="exportButton_Click" Content="Start" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,10,10" Width="128" Height="32"/>
         </Grid >
         <Grid x:Name="popupOnProgress" Visibility="Collapsed">
-            <Label Content="Conversion In Progress" HorizontalAlignment="Center" Margin="0,87,0,0" VerticalAlignment="Top" FontSize="32"/>
+            <Label x:Name="popupTitle" Content="Conversion In Progress" HorizontalAlignment="Center" Margin="0,87,0,0" VerticalAlignment="Top" FontSize="32"/>
             <Label x:Name="status" Content="Setting up the FFmpeg Instance..." HorizontalAlignment="Center" VerticalAlignment="Center"/>
             <Button x:Name="closePopup" Content="Close" Margin="0,470,0,0" VerticalAlignment="Top" HorizontalAlignment="Center" Click="closePopup_Click"/>
             <ui:ProgressBar x:Name="progress" Maximum="1" Margin="0,250,0,0" Width="340" HorizontalAlignment="Center" VerticalAlignment="Center"/>
