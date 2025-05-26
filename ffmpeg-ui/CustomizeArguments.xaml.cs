@@ -43,6 +43,10 @@ namespace ffmpeg_ui
             {
                 accel = int.Parse((string)nvidiaAccel.Tag);
             }
+            else if ((bool)intelAccel.IsChecked)
+            {
+                accel = int.Parse((string)intelAccel.Tag);
+            }
             else if ((bool)noAccel.IsChecked)
             {
                 accel = int.Parse((string)noAccel.Tag);

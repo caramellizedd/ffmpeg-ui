@@ -7,6 +7,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -37,8 +38,7 @@ public partial class MainWindow : Window
     }
     bool inputFile = false, outputFile = false;
     // Arguments
-    bool amdAccel = false;
-    bool nvidiaAccel = false;
+    int accelType = 0;
     int codecTypeID = 0;
     float bitrate = 5;
     private void Window_ActualThemeChanged(object sender, RoutedEventArgs e)
@@ -117,10 +117,12 @@ public partial class MainWindow : Window
         string input = inPath.Text.Replace("\"", "");
         string output = outPath.Text.Replace("\"", "");
         StringBuilder options = new StringBuilder();
-        if (amdAccel)
-            options.Append("Acceleration: AMD");
-        else if (nvidiaAccel)
+        if (accelType == 1)
             options.Append("Acceleration: NVIDIA");
+        else if (accelType == 2)
+            options.Append("Acceleration: AMD");
+        else if (accelType == 3)
+            options.Append("Acceleration: INTEL");
         else
             options.Append("Acceleration: CPU (Software)");
         options.Append("\n");
@@ -154,36 +156,64 @@ public partial class MainWindow : Window
             {
                 HWAccel = HWAccel.None
             };
-            if(amdAccel)
-                conversionOptions = new ConversionOptions
-                {
-                    HWAccel = HWAccel.d3d11va
-                };
-            else if(nvidiaAccel)
-                conversionOptions = new ConversionOptions
-                {
-                    HWAccel = HWAccel.cuda
-                };
+            switch (accelType)
+            {
+                case 0:
+                    conversionOptions = new ConversionOptions
+                    {
+                        HWAccel = HWAccel.None
+                    };
+                    break;
+                case 1:
+                    conversionOptions = new ConversionOptions
+                    {
+                        HWAccel = HWAccel.cuda
+                    };
+                    break;
+                case 2:
+                    conversionOptions = new ConversionOptions
+                    {
+                        HWAccel = HWAccel.d3d11va
+                    };
+                    break;
+                case 3:
+                    conversionOptions = new ConversionOptions
+                    {
+                        HWAccel = HWAccel.qsv
+                    };
+                    break;
+            }
             switch (codecTypeID)
             {
                 case 0:
-                    if (amdAccel)
-                        conversionOptions.VideoCodec = VideoCodec.h264_amf;
-                    else if (nvidiaAccel)
+                    if (accelType == 1)
                         conversionOptions.VideoCodec = VideoCodec.nvenc_h264;
+                    else if (accelType == 2)
+                        conversionOptions.VideoCodec = VideoCodec.h264_amf;
+                    else if (accelType == 3)
+                        conversionOptions.VideoCodec = VideoCodec.h264_qsv;
                     else
                         conversionOptions.VideoCodec = VideoCodec.libx264;
                     break;
                 case 1:
-                    if (amdAccel)
-                        conversionOptions.VideoCodec = VideoCodec.hevc_amf;
-                    else if (nvidiaAccel)
+                    if (accelType == 1)
                         conversionOptions.VideoCodec = VideoCodec.nvenc_hevc;
+                    else if (accelType == 2)
+                        conversionOptions.VideoCodec = VideoCodec.hevc_amf;
+                    else if (accelType == 3)
+                        conversionOptions.VideoCodec = VideoCodec.hevc_qsv;
                     else
                         conversionOptions.VideoCodec = VideoCodec.libx265;
                     break;
             }
-            conversionOptions.VideoBitRate = (int)(bitrate * 1000) - 1000;
+            if(bitrate == 1)
+                conversionOptions.VideoBitRate = 700;
+            else if(bitrate < 1)
+                conversionOptions.VideoBitRate = (int)(bitrate * 1000) - 200;
+            else
+                conversionOptions.VideoBitRate = (int)(bitrate * 1000) - 1000;
+            if (conversionOptions.VideoBitRate < 0)
+                conversionOptions.VideoBitRate = 100;
             ffmpeg.Progress += Ffmpeg_Progress;
             ffmpeg.Complete += Ffmpeg_Complete;
             ffmpeg.Error += Ffmpeg_Error;
@@ -232,10 +262,12 @@ public partial class MainWindow : Window
         sb.Append(string.Format("FPS: {0}\n", e.Fps));
         sb.Append(string.Format("Processed Frame: {0}\n", e.Frame));
         sb.Append(string.Format("TotalDuration: {0}\n", (int)e.TotalDuration.TotalSeconds));
-        if (amdAccel)
-            sb.Append("Using AMD Acceleration");
-        else if (nvidiaAccel)
+        if (accelType == 1)
             sb.Append("Using NVIDIA Acceleration");
+        else if (accelType == 2)
+            sb.Append("Using AMD Acceleration");
+        else if (accelType == 3)
+            sb.Append("Using INTEL Acceleration");
         else
             sb.Append("Using CPU Acceleration");
         sb.Append("\n");
@@ -288,20 +320,7 @@ public partial class MainWindow : Window
     }
     public static void changeSettings(int accelType, int codecType, float specifiedBitrate)
     {
-        switch (accelType) {
-            case 0:
-                instance.amdAccel = false;
-                instance.nvidiaAccel = false;
-                break;
-            case 1:
-                instance.amdAccel = false;
-                instance.nvidiaAccel = true;
-                break;
-            case 2:
-                instance.amdAccel = true;
-                instance.nvidiaAccel = false;
-                break;
-        }
+        instance.accelType = accelType;
         instance.codecTypeID = codecType;
         instance.bitrate = specifiedBitrate;
     }
