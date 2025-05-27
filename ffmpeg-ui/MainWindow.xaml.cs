@@ -404,7 +404,7 @@ public partial class MainWindow : Window
 
     private async void Window_Drop(object sender, DragEventArgs e)
     {
-        // DragLeave
+        // DragLeave Animation Copy Pasted.
         BlurEffect be = new BlurEffect();
         be.RenderingBias = RenderingBias.Performance;
         main.Effect = be;
@@ -461,6 +461,7 @@ public partial class MainWindow : Window
             }
             else
             {
+                // Check if the file type is a video.
                 string extension = System.IO.Path.GetExtension(files[0]).ToLowerInvariant();
                 if (extension == ".mp4" || extension == ".mkv" || extension == ".webm" || extension == ".avi" ||
            extension == ".mov" || extension == ".flv" || extension == ".wmv" || extension == ".mpeg" ||
@@ -489,7 +490,10 @@ public partial class MainWindow : Window
                     return;
                 }
             }
+            this.AllowDrop = true;
+            main.AllowDrop = true;
         }
+
     }
 
     public void showProgress()
