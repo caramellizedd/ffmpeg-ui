@@ -337,6 +337,161 @@ public partial class MainWindow : Window
         checkExportConditions();
     }
 
+    private void Window_DragEnter(object sender, DragEventArgs e)
+    {
+        BlurEffect be = new BlurEffect();
+        be.RenderingBias = RenderingBias.Performance;
+        main.Effect = be;
+        dragDropDialog.Opacity = 0;
+        dragDropDialog.Visibility = Visibility.Visible;
+        DoubleAnimation da = new DoubleAnimation
+        {
+            From = 0,
+            To = 20,
+            Duration = TimeSpan.FromMilliseconds(300),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        DoubleAnimation daOpacity = new DoubleAnimation
+        {
+            From = 1,
+            To = 0.3,
+            Duration = TimeSpan.FromMilliseconds(300),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        DoubleAnimation daOpacity1 = new DoubleAnimation
+        {
+            From = 0,
+            To = 1,
+            Duration = TimeSpan.FromMilliseconds(300),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        be.BeginAnimation(BlurEffect.RadiusProperty, da);
+        main.BeginAnimation(Grid.OpacityProperty, daOpacity);
+        dragDropDialog.BeginAnimation(Border.OpacityProperty, daOpacity1);
+    }
+
+    private void Window_DragLeave(object sender, DragEventArgs e)
+    {
+        BlurEffect be = new BlurEffect();
+        be.RenderingBias = RenderingBias.Performance;
+        main.Effect = be;
+        DoubleAnimation da = new DoubleAnimation
+        {
+            From = 20,
+            To = 0,
+            Duration = TimeSpan.FromMilliseconds(300),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        DoubleAnimation daOpacity = new DoubleAnimation
+        {
+            From = 0.3,
+            To = 1,
+            Duration = TimeSpan.FromMilliseconds(300),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        DoubleAnimation daOpacity1 = new DoubleAnimation
+        {
+            From = 1,
+            To = 0,
+            Duration = TimeSpan.FromMilliseconds(300),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        be.BeginAnimation(BlurEffect.RadiusProperty, da);
+        main.BeginAnimation(Grid.OpacityProperty, daOpacity);
+        dragDropDialog.BeginAnimation(Border.OpacityProperty, daOpacity1);
+        dragDropDialog.Visibility = Visibility.Collapsed;
+    }
+
+    private async void Window_Drop(object sender, DragEventArgs e)
+    {
+        // DragLeave
+        BlurEffect be = new BlurEffect();
+        be.RenderingBias = RenderingBias.Performance;
+        main.Effect = be;
+        DoubleAnimation da = new DoubleAnimation
+        {
+            From = 20,
+            To = 0,
+            Duration = TimeSpan.FromMilliseconds(300),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        DoubleAnimation daOpacity = new DoubleAnimation
+        {
+            From = 0.3,
+            To = 1,
+            Duration = TimeSpan.FromMilliseconds(300),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        DoubleAnimation daOpacity1 = new DoubleAnimation
+        {
+            From = 1,
+            To = 0,
+            Duration = TimeSpan.FromMilliseconds(300),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        be.BeginAnimation(BlurEffect.RadiusProperty, da);
+        main.BeginAnimation(Grid.OpacityProperty, daOpacity);
+        dragDropDialog.BeginAnimation(Border.OpacityProperty, daOpacity1);
+        dragDropDialog.Visibility = Visibility.Collapsed;
+        // Actual Drop Function
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            // Note that you can have more than one file.
+            string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+            this.AllowDrop = false;
+            main.AllowDrop = false;
+
+            // Assuming you have one file that you care about, pass it off to whatever
+            // handling code you have defined.
+            if(files.Length > 1)
+            {
+                ContentDialog dialog = new ContentDialog
+                {
+                    Title = "Oh nooo!",
+                    Content = "You can only drop ONE file.\nThis feature is planned for the next update.\nStay tuned!",
+                    PrimaryButtonText = "Awh okay :<",
+                    IsPrimaryButtonEnabled = true
+                };
+                if(await dialog.ShowAsync() == ContentDialogResult.Primary)
+                {
+                    this.AllowDrop = true;
+                    main.AllowDrop = true;
+                }
+                return;
+            }
+            else
+            {
+                string extension = System.IO.Path.GetExtension(files[0]).ToLowerInvariant();
+                if (extension == ".mp4" || extension == ".mkv" || extension == ".webm" || extension == ".avi" ||
+           extension == ".mov" || extension == ".flv" || extension == ".wmv" || extension == ".mpeg" ||
+           extension == ".mpg" || extension == ".m4v" || extension == ".3gp" || extension == ".ts" ||
+           extension == ".mts" || extension == ".m2ts" || extension == ".ogv" || extension == ".vob" ||
+           extension == ".rm" || extension == ".rmvb" || extension == ".asf" || extension == ".f4v" ||
+           extension == ".divx" || extension == ".dv" || extension == ".amv" || extension == ".nsv" ||
+           extension == ".mjpeg" || extension == ".mjpg")
+                {
+                    inPath.Text = files[0].ToString();
+                }
+                else
+                {
+                    ContentDialog dialog = new ContentDialog
+                    {
+                        Title = "Oh nooo!",
+                        Content = "Please only insert video files!\nYou make me sad QwQ.",
+                        PrimaryButtonText = "Awh okay :<",
+                        IsPrimaryButtonEnabled = true
+                    };
+                    if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+                    {
+                        this.AllowDrop = true;
+                        main.AllowDrop = true;
+                    }
+                    return;
+                }
+            }
+        }
+    }
+
     public void showProgress()
     {
         BlurEffect be = new BlurEffect();
