@@ -13,3 +13,4 @@
 
 ### **Required Libraries for Development:**
 - xFFmpeg.NET
+- iNKORE.UI.WPF.Modern
