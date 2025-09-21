@@ -2,13 +2,20 @@
 using FFmpeg.NET.Enums;
 using iNKORE.UI.WPF.Modern;
 using iNKORE.UI.WPF.Modern.Controls;
+using iNKORE.UI.WPF.Modern.Controls.Helpers;
+using iNKORE.UI.WPF.Modern.Helpers.Styles;
 using Microsoft.Win32;
+using Octokit;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
+using System.Net;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Security.Policy;
 using System.Text;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -20,7 +27,10 @@ using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using Windows.Media.Protection.PlayReady;
 using Windows.Media.Streaming.Adaptive;
+using MessageBox = iNKORE.UI.WPF.Modern.Controls.MessageBox;
+using Path = System.IO.Path;
 
 namespace ffmpeg_ui;
 
@@ -30,13 +40,35 @@ namespace ffmpeg_ui;
 public partial class MainWindow : Window
 {
     public static MainWindow instance;
+    RegistryKey key = Registry.CurrentUser.OpenSubKey("Software", true);
     public MainWindow()
     {
         instance = this;
         InitializeComponent();
+        initSettings();
         checkExportConditions();
+        checkFFmpeg();
+        checkUpdate();
     }
+
+    private void initSettings()
+    {
+        key.CreateSubKey("ffmpeg-ui");
+        key = key.OpenSubKey("ffmpeg-ui", true);
+
+        //key.SetValue("mica", true);
+        if ((int)key.GetValue("mica", 0) == 1)
+        {
+            micaToggle.IsChecked = true;
+            WindowHelper.SetSystemBackdropType(this, BackdropType.Tabbed);
+            WindowHelper.SetApplyBackground(this, false);
+        }
+
+    }
+
     bool inputFile = false, outputFile = false;
+    string ffmpegPath = "";
+    static string tagname = "v1.0";
     // Arguments
     int accelType = 0;
     int codecTypeID = 0;
@@ -51,6 +83,81 @@ public partial class MainWindow : Window
         {
             Background = new SolidColorBrush(Color.FromArgb(0xAA, 0xFF, 0xFF, 0xFF));
         }
+    }
+    private async void checkUpdate()
+    {
+        var github = new GitHubClient(new ProductHeaderValue("ffmpeg-ui"));
+        var releases = github.Repository.Release.GetLatest("caramellizedd", "ffmpeg-ui");
+        var latest = releases.Result;
+        if(latest.TagName != tagname)
+        {
+            ContentDialog dialog = new ContentDialog
+            {
+                Title = "Update Notice",
+                Content = "An update is available. Click the update button to update!",
+                PrimaryButtonText = "Update",
+                SecondaryButtonText = "Nah",
+                IsPrimaryButtonEnabled = true,
+                IsSecondaryButtonEnabled = true
+            };
+            if(await dialog.ShowAsync() == ContentDialogResult.Primary)
+            {
+                ProcessStartInfo psi = new ProcessStartInfo();
+                psi.UseShellExecute = true;
+                psi.FileName = "https://github.com/caramellizedd/ffmpeg-ui/releases/latest";
+                Process.Start(psi);
+            }
+        }
+    }
+    private void checkFFmpeg(bool forceUpdate = false)
+    {
+        showProgress(1);
+        new Thread(() =>
+        {
+            this.Dispatcher.Invoke(() =>
+            {
+                dragDropDialog.IsEnabled = false;
+            });
+            bool ffmpegInstalled = File.Exists(Environment.CurrentDirectory + "\\bin\\ffmpeg.exe");
+            string latestFFmpeg = "https://github.com/btbn/ffmpeg-builds/releases/latest/download/ffmpeg-master-latest-win64-gpl-shared.zip";
+            
+            string zipPath = Path.GetTempFileName();
+            string extractPath = Path.GetTempPath() + "ffmpegtemp";
+            
+            if (!ffmpegInstalled || forceUpdate)
+            {
+                using (WebClient wc = new WebClient())
+                {
+                    wc.DownloadFile(new Uri(latestFFmpeg), zipPath); // TODO: Replace ffmpeg.zip to zipPath
+                    ZipFile.ExtractToDirectory(zipPath, extractPath, true);
+                }
+                //move ffmpeg-master-latest-win64-gpl-shared\bin\ from extracted path to main directory
+                if (Directory.Exists(Environment.CurrentDirectory + "\\bin"))
+                    Directory.Delete(Environment.CurrentDirectory + "\\bin", true);
+                Directory.Move(extractPath + "\\ffmpeg-master-latest-win64-gpl-shared\\bin\\", Environment.CurrentDirectory + "\\bin");
+                this.Dispatcher.Invoke(async () =>
+                {
+                    ContentDialog dialog = new ContentDialog
+                    {
+                        Title = "Update Finished",
+                        Content = "FFmpeg has been updated!",
+                        PrimaryButtonText = "Okayy ^w^",
+                        IsPrimaryButtonEnabled = true
+                    };
+                    await dialog.ShowAsync();
+                });
+                Directory.Delete(extractPath, true);
+                File.Delete(zipPath);
+            }
+
+            this.Dispatcher.Invoke(() =>
+            {
+                dragDropDialog.IsEnabled = true;
+                closePopupUI();
+            });
+
+            ffmpegPath = Environment.CurrentDirectory + "\\bin\\ffmpeg.exe";
+        }).Start();
     }
 
     private void changeArgs_Click(object sender, RoutedEventArgs e)
@@ -148,10 +255,26 @@ public partial class MainWindow : Window
             };
         if (await confirmDialog.ShowAsync() == ContentDialogResult.Primary)
         {
+            if (File.Exists(outPath.Text))
+            {
+                ContentDialog dialog = new ContentDialog
+                {
+                    Title = "W- waitt!!",
+                    Content = "The specified file already exists!\nDo you want to overwrite it? o~o?",
+                    PrimaryButtonText = "Yaa ÒwÓ",
+                    SecondaryButtonText = "Naa ^w^",
+                    IsPrimaryButtonEnabled = true,
+                    IsSecondaryButtonEnabled = true
+                };
+                if (await dialog.ShowAsync() == ContentDialogResult.Secondary)
+                {
+                    return;
+                }
+            }
             var tokenSource = new CancellationTokenSource();
             var inputFile = new InputFile(input);
             var outputFile = new OutputFile(output);
-            Engine ffmpeg = new Engine(Directory.GetCurrentDirectory() + "\\ffmpeg.exe");
+            Engine ffmpeg = new Engine(ffmpegPath);
             var conversionOptions = new ConversionOptions
             {
                 HWAccel = HWAccel.None
@@ -312,6 +435,10 @@ public partial class MainWindow : Window
             To = 1,
             Duration = TimeSpan.FromMilliseconds(300),
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+        };
+        ta.Completed += (o, t) =>
+        {
+            popupOnProgress.Visibility = Visibility.Collapsed;
         };
         be.BeginAnimation(BlurEffect.RadiusProperty, da);
         main.BeginAnimation(Grid.OpacityProperty, daOpacity);
@@ -496,37 +623,112 @@ public partial class MainWindow : Window
 
     }
 
-    public void showProgress()
+    private async void updateFFmpeg_Click(object sender, RoutedEventArgs e)
     {
-        BlurEffect be = new BlurEffect();
-        be.RenderingBias = RenderingBias.Performance;
-        main.Effect = be;
-        popupOnProgress.Visibility = Visibility.Visible;
-        closePopup.IsEnabled = false;
-        ThicknessAnimation ta = new ThicknessAnimation
+        ContentDialog dialog = new ContentDialog
         {
-            From = new Thickness(0, this.Height, 0, 0),
-            To = new Thickness(0, 0, 0, 0),
-            Duration = TimeSpan.FromMilliseconds(300),
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            Title = "Update Confirmation",
+            Content = "Are you sure you want to update the FFmpeg binary? o~o?",
+            PrimaryButtonText = "Yaa ^w^",
+            SecondaryButtonText = "Naa -w-",
+            IsPrimaryButtonEnabled = true,
+            IsSecondaryButtonEnabled = true
         };
-        DoubleAnimation da = new DoubleAnimation
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
         {
-            From = 0,
-            To = 20,
-            Duration = TimeSpan.FromMilliseconds(300),
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-        };
-        DoubleAnimation daOpacity = new DoubleAnimation
-        {
-            From = 1,
-            To = 0.3,
-            Duration = TimeSpan.FromMilliseconds(300),
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-        };
-        be.BeginAnimation(BlurEffect.RadiusProperty, da);
-        main.BeginAnimation(Grid.OpacityProperty, daOpacity);
-        main.IsEnabled = false;
-        popupOnProgress.BeginAnimation(Grid.MarginProperty, ta);
+            checkFFmpeg(true);
+        }
+    }
+
+    private void micaToggle_Checked(object sender, RoutedEventArgs e)
+    {
+        key.SetValue("mica", 1, RegistryValueKind.DWord);
+        WindowHelper.SetSystemBackdropType(this, BackdropType.Tabbed);
+        WindowHelper.SetApplyBackground(this, false);
+    }
+
+    private void micaToggle_Unchecked(object sender, RoutedEventArgs e)
+    {
+        key.SetValue("mica", 0, RegistryValueKind.DWord);
+        WindowHelper.SetSystemBackdropType(this, BackdropType.Acrylic);
+        WindowHelper.SetApplyBackground(this, true);
+    }
+
+    public void showProgress(int type = 0)
+    {
+        switch (type){
+            case 0:
+                popupTitle.Content = "Conversion In Progress";
+                status.Content = "Setting up the FFmpeg Instance...";
+                progress.IsIndeterminate = false;
+                BlurEffect be = new BlurEffect();
+                be.RenderingBias = RenderingBias.Performance;
+                main.Effect = be;
+                popupOnProgress.Visibility = Visibility.Visible;
+                closePopup.IsEnabled = false;
+                ThicknessAnimation ta = new ThicknessAnimation
+                {
+                    From = new Thickness(0, this.Height, 0, 0),
+                    To = new Thickness(0, 0, 0, 0),
+                    Duration = TimeSpan.FromMilliseconds(300),
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                };
+                DoubleAnimation da = new DoubleAnimation
+                {
+                    From = 0,
+                    To = 20,
+                    Duration = TimeSpan.FromMilliseconds(300),
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                };
+                DoubleAnimation daOpacity = new DoubleAnimation
+                {
+                    From = 1,
+                    To = 0.3,
+                    Duration = TimeSpan.FromMilliseconds(300),
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                };
+                be.BeginAnimation(BlurEffect.RadiusProperty, da);
+                main.BeginAnimation(Grid.OpacityProperty, daOpacity);
+                main.IsEnabled = false;
+                popupOnProgress.BeginAnimation(Grid.MarginProperty, ta);
+                break;
+            case 1:
+                popupTitle.Content = "Download necessary files";
+                status.Content = "Downloading FFmpeg. Please wait\nThis will only need to be done once unless you press the update FFmpeg button.";
+                closePopup.IsEnabled = false;
+                progress.IsIndeterminate = true;
+
+                BlurEffect be2 = new BlurEffect();
+                be2.RenderingBias = RenderingBias.Performance;
+                main.Effect = be2;
+                popupOnProgress.Visibility = Visibility.Visible;
+                ThicknessAnimation ta2 = new ThicknessAnimation
+                {
+                    From = new Thickness(0, this.Height, 0, 0),
+                    To = new Thickness(0, 0, 0, 0),
+                    Duration = TimeSpan.FromMilliseconds(300),
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                };
+                DoubleAnimation da2 = new DoubleAnimation
+                {
+                    From = 0,
+                    To = 20,
+                    Duration = TimeSpan.FromMilliseconds(300),
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                };
+                DoubleAnimation daOpacity2 = new DoubleAnimation
+                {
+                    From = 1,
+                    To = 0.3,
+                    Duration = TimeSpan.FromMilliseconds(300),
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                };
+
+                be2.BeginAnimation(BlurEffect.RadiusProperty, da2);
+                main.BeginAnimation(Grid.OpacityProperty, daOpacity2);
+                main.IsEnabled = false;
+                popupOnProgress.BeginAnimation(Grid.MarginProperty, ta2);
+                break;
+        }
     }
 }

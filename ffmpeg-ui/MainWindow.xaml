@@ -14,7 +14,7 @@
         Drop="Window_Drop"
         AllowDrop="True"
         ui:ThemeManager.ActualThemeChanged="Window_ActualThemeChanged"
-        Title="ffmpeg-ui" Height="611" Width="989">
+        Title="ffmpeg-ui" Height="611" Width="989" MinHeight="611" MinWidth="989">
     <Grid>
         <Grid x:Name="main" Visibility="Visible" AllowDrop="True" DragEnter="Window_DragEnter" DragLeave="Window_DragLeave" Drop="Window_Drop">
             <Label Content="FFmpeg but I made a GUI for it" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,52,0,0" FontSize="32" FontFamily="Segoe UI" FontWeight="DemiBold"/>
@@ -35,11 +35,17 @@
                 </StackPanel>
             </StackPanel>
             <Button x:Name="exportButton" Click="exportButton_Click" Content="Start" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,10,10" Width="128" Height="32"/>
+            <Expander Header="Settings" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="10,0,0,10">
+                <StackPanel>
+                    <CheckBox Content="Use Mica Backdrop (Win11 Only!)" Name="micaToggle" Checked="micaToggle_Checked" Unchecked="micaToggle_Unchecked"/>
+                    <Button Content="Update FFmpeg" Name="updateFFmpeg" Click="updateFFmpeg_Click"/>
+                </StackPanel>
+            </Expander>
         </Grid >
         <Grid x:Name="popupOnProgress" Visibility="Collapsed">
             <Label x:Name="popupTitle" Content="Conversion In Progress" HorizontalAlignment="Center" Margin="0,87,0,0" VerticalAlignment="Top" FontSize="32"/>
             <Label x:Name="status" Content="Setting up the FFmpeg Instance..." HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            <Button x:Name="closePopup" Content="Close" Margin="0,470,0,0" VerticalAlignment="Top" HorizontalAlignment="Center" Click="closePopup_Click"/>
+            <Button x:Name="closePopup" Content="Close" Margin="0,470,0,0" VerticalAlignment="Center" HorizontalAlignment="Center" Click="closePopup_Click"/>
             <ui:ProgressBar x:Name="progress" Maximum="1" Margin="0,250,0,0" Width="340" HorizontalAlignment="Center" VerticalAlignment="Center"/>
         </Grid>
         <Border x:Name="dragDropDialog" Visibility="Collapsed" Margin="30" CornerRadius="16" BorderThickness="3">
