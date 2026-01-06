@@ -18,7 +18,7 @@
     <Grid>
         <Grid x:Name="main" Visibility="Visible" AllowDrop="True" DragEnter="Window_DragEnter" DragLeave="Window_DragLeave" Drop="Window_Drop">
             <Label Content="FFmpeg but I made a GUI for it" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,52,0,0" FontSize="32" FontFamily="Segoe UI" FontWeight="DemiBold"/>
-            <Label Content="Powered by xFFmpeg.NET" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,102,0,0"/>
+            <Label Content="Powered by FFmpegCore" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,102,0,0"/>
             <StackPanel Orientation="Vertical" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Label Content="File Path: " Width="100" VerticalAlignment="Center"/>
@@ -46,7 +46,7 @@
             <Label x:Name="popupTitle" Content="Conversion In Progress" HorizontalAlignment="Center" Margin="0,87,0,0" VerticalAlignment="Top" FontSize="32"/>
             <Label x:Name="status" Content="Setting up the FFmpeg Instance..." HorizontalAlignment="Center" VerticalAlignment="Center"/>
             <Button x:Name="closePopup" Content="Close" Margin="0,470,0,0" VerticalAlignment="Center" HorizontalAlignment="Center" Click="closePopup_Click"/>
-            <ui:ProgressBar x:Name="progress" Maximum="1" Margin="0,250,0,0" Width="340" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <ui:ProgressBar x:Name="progress" Maximum="100" Margin="0,250,0,0" Width="340" HorizontalAlignment="Center" VerticalAlignment="Center"/>
         </Grid>
         <Border x:Name="dragDropDialog" Visibility="Collapsed" Margin="30" CornerRadius="16" BorderThickness="3">
             <Border.BorderBrush>

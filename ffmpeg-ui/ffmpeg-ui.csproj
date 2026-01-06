@@ -10,9 +10,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FFMpegCore" Version="5.4.0" />
     <PackageReference Include="iNKORE.UI.WPF.Modern" Version="0.10.0" />
     <PackageReference Include="Octokit" Version="14.0.0" />
-    <PackageReference Include="xFFmpeg.NET" Version="7.2.0" />
   </ItemGroup>
 
 </Project>
