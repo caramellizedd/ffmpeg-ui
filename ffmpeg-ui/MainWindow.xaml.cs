@@ -6,6 +6,7 @@ using iNKORE.UI.WPF.Modern.Controls.Helpers;
 using iNKORE.UI.WPF.Modern.Helpers.Styles;
 using Microsoft.Win32;
 using Octokit;
+using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -90,7 +91,7 @@ public partial class MainWindow : Window
         var github = new GitHubClient(new ProductHeaderValue("ffmpeg-ui"));
         var releases = github.Repository.Release.GetLatest("caramellizedd", "ffmpeg-ui");
         var latest = releases.Result;
-        if(latest.TagName != tagname)
+        if (latest.TagName != tagname)
         {
             ContentDialog dialog = new ContentDialog
             {
@@ -101,7 +102,7 @@ public partial class MainWindow : Window
                 IsPrimaryButtonEnabled = true,
                 IsSecondaryButtonEnabled = true
             };
-            if(await dialog.ShowAsync() == ContentDialogResult.Primary)
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.UseShellExecute = true;
@@ -121,15 +122,15 @@ public partial class MainWindow : Window
             });
             bool ffmpegInstalled = File.Exists(Environment.CurrentDirectory + "\\bin\\ffmpeg.exe");
             string latestFFmpeg = "https://github.com/btbn/ffmpeg-builds/releases/latest/download/ffmpeg-master-latest-win64-gpl-shared.zip";
-            
+
             string zipPath = Path.GetTempFileName();
             string extractPath = Path.GetTempPath() + "ffmpegtemp";
-            
+
             if (!ffmpegInstalled || forceUpdate)
             {
                 using (WebClient wc = new WebClient())
                 {
-                    wc.DownloadFile(new Uri(latestFFmpeg), zipPath); // TODO: Replace ffmpeg.zip to zipPath
+                    wc.DownloadFile(new Uri(latestFFmpeg), zipPath);
                     ZipFile.ExtractToDirectory(zipPath, extractPath, true);
                 }
                 //move ffmpeg-master-latest-win64-gpl-shared\bin\ from extracted path to main directory
@@ -212,7 +213,7 @@ public partial class MainWindow : Window
     }
     public void checkExportConditions()
     {
-        if(inputFile && outputFile)
+        if (inputFile)
         {
             exportButton.IsEnabled = true;
         }
@@ -224,8 +225,45 @@ public partial class MainWindow : Window
 
     private async void exportButton_Click(object sender, RoutedEventArgs e)
     {
-        string input = inPath.Text.Replace("\"", "");
-        string output = outPath.Text.Replace("\"", "");
+        cancelTask = false;
+        string[] paths = inPath.Text.Split("|");
+        string[] outpaths = outPath.Text.Split("|");
+        bool emptyOutput = outPath.Text == "" || outPath.Text.IsWhiteSpace() ? true : false;
+        new Thread(() =>
+        {
+            if (paths.Count() >= 1)
+            {
+                int index = 0;
+                foreach (String str in paths)
+                {
+                    if (cancelTask) return;
+                    while (ongoingTask) {
+                        
+                    }
+                    Dispatcher.Invoke(() =>
+                    {
+                        exportVideo(str, emptyOutput ? Path.GetDirectoryName(str) + "\\" + Path.GetFileNameWithoutExtension(str) + "-out" + Path.GetExtension(str) : outpaths[index], index, paths.Count());
+                    });
+
+                    index++;
+                }
+            }
+            else
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    exportVideo(paths[0], emptyOutput ? Path.GetDirectoryName(paths[0]) + "\\" + Path.GetFileNameWithoutExtension(paths[0]) + "-out" + Path.GetExtension(paths[0]) : outpaths[0]);
+                });
+            }
+        }).Start();
+    }
+    bool ongoingTask = false;
+    bool cancelTask = false;
+    private async void exportVideo(string path, string outPath, int index = 0, int max = 0)
+    {
+        ongoingTask = true;
+        string input = path.Replace("\"", "");
+        string output = outPath.Replace("\"", "");
         StringBuilder options = new StringBuilder();
 
         if (accelType == 1)
@@ -251,283 +289,320 @@ public partial class MainWindow : Window
 
         options.Append("\n");
         options.Append("Bitrate: " + bitrate + "M\n");
-        options.Append("Input File: " + inPath.Text);
-        options.Append("\nOutput File: " + outPath.Text);
+        options.Append(max >= 1 ? "Input Files:\n" + inPath.Text.Replace("|", "\n") : "Input File: " + path);
+
+        if (this.outPath.Text == "" || this.outPath.Text.IsWhiteSpace())
+        {
+            options.Append("\nOutput Files:\n");
+            foreach (String filePath in inPath.Text.Split("|"))
+            {
+                options.Append(Path.GetDirectoryName(filePath) + "\\" + Path.GetFileNameWithoutExtension(filePath) + "-out" + Path.GetExtension(filePath) + "\n");
+            }
+        }
+        else
+        {
+            options.Append("\nOutput File: " + outPath);
+        }
 
         ContentDialog confirmDialog = new ContentDialog()
-            {
-                Title = "Confirmation",
-                Content = "Are you sure you want to do the operation with these options?\n\n" + options,
-                PrimaryButtonText = "Yes",
-                CloseButtonText = "No"
-            };
-
-        if (await confirmDialog.ShowAsync() == ContentDialogResult.Primary)
         {
-            if (File.Exists(outPath.Text))
+            Title = "Confirmation",
+            Content = "Are you sure you want to do the operation with these options?\n\n" + options,
+            PrimaryButtonText = "Yes",
+            CloseButtonText = "No"
+        };
+        try
+        {
+            if (index >= 1 || await confirmDialog.ShowAsync() == ContentDialogResult.Primary)
             {
-                ContentDialog dialog = new ContentDialog
+                if (File.Exists(outPath))
                 {
-                    Title = "W- waitt!!",
-                    Content = "The specified file already exists!\nDo you want to overwrite it? o~o?",
-                    PrimaryButtonText = "Yaa ÒwÓ",
-                    SecondaryButtonText = "Naa ^w^",
-                    IsPrimaryButtonEnabled = true,
-                    IsSecondaryButtonEnabled = true
-                };
-                if (await dialog.ShowAsync() == ContentDialogResult.Secondary)
-                {
-                    return;
-                }
-            }
-
-            var probe = FFProbe.Analyse(input);
-            if (bitrate <= 0)
-                bitrate = 100;
-            showProgress();
-            new Thread(async () =>
-            {
-                try
-                {
-                    switch (codecTypeID)
+                    ContentDialog dialog = new ContentDialog
                     {
-                        case 0:
-                            if (accelType == 1)
-                            {
-                                await FFMpegArguments.FromFileInput(input, true,
-                                 options => options.WithHardwareAcceleration(HardwareAccelerationDevice.Auto))
-                            .OutputToFile(output, true, options => options
-                                .WithVideoCodec("h264_nvenc")
-                                .WithConstantRateFactor(bitrate)
-                                .WithAudioCodec(AudioCodec.Aac))
-                            .NotifyOnProgress((percentage) =>
-                            {
-                                Dispatcher.Invoke(() =>
-                                {
-                                    progress.Value = percentage;
-                                    status.Content = "Please do not close the app.\nProgress: " + percentage + "%";
-
-                                    status.Dispatcher.Invoke(() =>
-                                    {
-                                        if (percentage == 100)
-                                        {
-                                            status.Content = "Finished!";
-                                            popupTitle.Content = "Conversion Finished!";
-                                            progress.Value = 100;
-                                            closePopup.IsEnabled = true;
-                                        }
-                                    });
-
-                                });
-                            }, probe.Duration)
-                            .ProcessAsynchronously();
-                            }
-                            else if (accelType == 2)
-                                await FFMpegArguments.FromFileInput(input, true,
-                                 options => options.WithHardwareAcceleration(HardwareAccelerationDevice.Auto))
-                            .OutputToFile(output, true, options => options
-                                .WithVideoCodec("h264_amf")
-                                .WithConstantRateFactor(bitrate)
-                                .WithAudioCodec(AudioCodec.Aac))
-                            .NotifyOnProgress((percentage) =>
-                            {
-                                Dispatcher.Invoke(() =>
-                                {
-                                    progress.Value = percentage;
-                                    status.Content = "Please do not close the app.\nProgress: " + percentage + "%";
-
-                                    status.Dispatcher.Invoke(() =>
-                                    {
-                                        if (percentage == 100)
-                                        {
-                                            status.Content = "Finished!";
-                                            popupTitle.Content = "Conversion Finished!";
-                                            progress.Value = 100;
-                                            closePopup.IsEnabled = true;
-                                        }
-                                    });
-
-                                });
-                            }, probe.Duration)
-                            .ProcessAsynchronously();
-                            else if (accelType == 3)
-                                await FFMpegArguments.FromFileInput(input, true,
-                                 options => options.WithHardwareAcceleration(HardwareAccelerationDevice.Auto))
-                            .OutputToFile(output, true, options => options
-                                .WithVideoCodec("h264_qsv")
-                                .WithConstantRateFactor(bitrate)
-                                .WithAudioCodec(AudioCodec.Aac))
-                            .NotifyOnProgress((percentage) =>
-                            {
-                                Dispatcher.Invoke(() =>
-                                {
-                                    progress.Value = percentage;
-                                    status.Content = "Please do not close the app.\nProgress: " + percentage + "%";
-
-                                    status.Dispatcher.Invoke(() =>
-                                    {
-                                        if (percentage == 100)
-                                        {
-                                            status.Content = "Finished!";
-                                            popupTitle.Content = "Conversion Finished!";
-                                            progress.Value = 100;
-                                            closePopup.IsEnabled = true;
-                                        }
-                                    });
-
-                                });
-                            }, probe.Duration)
-                            .ProcessAsynchronously();
-                            else
-                                await FFMpegArguments.FromFileInput(input, true)
-                            .OutputToFile(output, true, options => options
-                                .WithVideoCodec(VideoCodec.LibX264)
-                                .WithConstantRateFactor(bitrate)
-                                .WithAudioCodec(AudioCodec.Aac))
-                            .NotifyOnProgress((percentage) =>
-                            {
-                                Dispatcher.Invoke(() =>
-                                {
-                                    progress.Value = percentage;
-                                    status.Content = "Please do not close the app.\nProgress: " + percentage + "%";
-
-                                    status.Dispatcher.Invoke(() =>
-                                    {
-                                        if (percentage == 100)
-                                        {
-                                            status.Content = "Finished!";
-                                            popupTitle.Content = "Conversion Finished!";
-                                            progress.Value = 100;
-                                            closePopup.IsEnabled = true;
-                                        }
-                                    });
-
-                                });
-                            }, probe.Duration)
-                            .ProcessAsynchronously();
-                            break;
-                        case 1:
-                            if (accelType == 1)
-                            {
-                                await FFMpegArguments.FromFileInput(input, true,
-                                 options => options.WithHardwareAcceleration(HardwareAccelerationDevice.Auto))
-                            .OutputToFile(output, true, options => options
-                                .WithVideoCodec("hevc_nvenc")
-                                .WithConstantRateFactor(bitrate)
-                                .WithAudioCodec(AudioCodec.Aac))
-                            .NotifyOnProgress((percentage) =>
-                            {
-                                Dispatcher.Invoke(() =>
-                                {
-                                    progress.Value = percentage;
-                                    status.Content = "Please do not close the app.\nProgress: " + percentage + "%";
-
-                                    status.Dispatcher.Invoke(() =>
-                                    {
-                                        if (percentage == 100)
-                                        {
-                                            status.Content = "Finished!";
-                                            popupTitle.Content = "Conversion Finished!";
-                                            progress.Value = 100;
-                                            closePopup.IsEnabled = true;
-                                        }
-                                    });
-
-                                });
-                            }, probe.Duration)
-                            .ProcessAsynchronously();
-                            }
-                            else if (accelType == 2)
-                                await FFMpegArguments.FromFileInput(input, true,
-                                 options => options.WithHardwareAcceleration(HardwareAccelerationDevice.Auto))
-                            .OutputToFile(output, true, options => options
-                                .WithVideoCodec("hevc_amf")
-                                .WithConstantRateFactor(bitrate)
-                                .WithAudioCodec(AudioCodec.Aac))
-                            .NotifyOnProgress((percentage) =>
-                            {
-                                Dispatcher.Invoke(() =>
-                                {
-                                    progress.Value = percentage;
-                                    status.Content = "Please do not close the app.\nProgress: " + percentage + "%";
-
-                                    status.Dispatcher.Invoke(() =>
-                                    {
-                                        if (percentage == 100)
-                                        {
-                                            status.Content = "Finished!";
-                                            popupTitle.Content = "Conversion Finished!";
-                                            progress.Value = 100;
-                                            closePopup.IsEnabled = true;
-                                        }
-                                    });
-
-                                });
-                            }, probe.Duration)
-                            .ProcessAsynchronously();
-                            else if (accelType == 3)
-                                await FFMpegArguments.FromFileInput(input, true,
-                                 options => options.WithHardwareAcceleration(HardwareAccelerationDevice.Auto))
-                            .OutputToFile(output, true, options => options
-                                .WithVideoCodec("hevc_qsv")
-                                .WithConstantRateFactor(bitrate)
-                                .WithAudioCodec(AudioCodec.Aac))
-                            .NotifyOnProgress((percentage) =>
-                            {
-                                Dispatcher.Invoke(() =>
-                                {
-                                    progress.Value = percentage;
-                                    status.Content = "Please do not close the app.\nProgress: " + percentage + "%";
-
-                                    status.Dispatcher.Invoke(() =>
-                                    {
-                                        if (percentage == 100)
-                                        {
-                                            status.Content = "Finished!";
-                                            popupTitle.Content = "Conversion Finished!";
-                                            progress.Value = 100;
-                                            closePopup.IsEnabled = true;
-                                        }
-                                    });
-
-                                });
-                            }, probe.Duration)
-                            .ProcessAsynchronously();
-                            else
-                                await FFMpegArguments.FromFileInput(input, true)
-                            .OutputToFile(output, true, options => options
-                                .WithVideoCodec(VideoCodec.LibX265)
-                                .WithConstantRateFactor(bitrate)
-                                .WithAudioCodec(AudioCodec.Aac))
-                            .NotifyOnProgress((percentage) =>
-                            {
-                                Dispatcher.Invoke(() =>
-                                {
-                                    progress.Value = percentage;
-                                    status.Content = "Please do not close the app.\nProgress: " + percentage + "%";
-
-                                    status.Dispatcher.Invoke(() =>
-                                    {
-                                        if (percentage == 100)
-                                        {
-                                            status.Content = "Finished!";
-                                            popupTitle.Content = "Conversion Finished!";
-                                            progress.Value = 100;
-                                            closePopup.IsEnabled = true;
-                                        }
-                                    });
-
-                                });
-                            }, probe.Duration)
-                            .ProcessAsynchronously();
-                            break;
+                        Title = "W- waitt!!",
+                        Content = "The specified file already exists!\nDo you want to overwrite it? o~o?",
+                        PrimaryButtonText = "Yaa ÒwÓ",
+                        SecondaryButtonText = "Naa ^w^",
+                        IsPrimaryButtonEnabled = true,
+                        IsSecondaryButtonEnabled = true
+                    };
+                    if (await dialog.ShowAsync() == ContentDialogResult.Secondary)
+                    {
+                        return;
                     }
                 }
-                catch(Exception err)
+
+                var probe = FFProbe.Analyse(input);
+                if (bitrate <= 0)
+                    bitrate = 100;
+                showProgress();
+                new Thread(async () =>
                 {
-                    exception(err);
-                }
-            }).Start();
+                    try
+                    {
+                        switch (codecTypeID)
+                        {
+                            case 0:
+                                if (accelType == 1)
+                                {
+                                    await FFMpegArguments.FromFileInput(input, true,
+                                     options => options.WithHardwareAcceleration(HardwareAccelerationDevice.Auto))
+                                .OutputToFile(output, true, options => options
+                                    .WithVideoCodec("h264_nvenc")
+                                    .WithConstantRateFactor(bitrate)
+                                    .WithAudioCodec(AudioCodec.Aac))
+                                .NotifyOnProgress((percentage) =>
+                                {
+                                    Dispatcher.Invoke(() =>
+                                    {
+                                        progress.Value = percentage;
+                                        popupTitle.Content = "Conversion In Progress!";
+                                        status.Content = "Please do not close the app.\nProgress: " + percentage + "%" + "\n(" + (index + 1) + " of " + max + ")";
+
+                                        status.Dispatcher.Invoke(() =>
+                                        {
+                                            if (percentage == 100)
+                                            {
+                                                status.Content = "Finished!" + "\n(" + (index + 1) + " of " + max + ")";
+                                                popupTitle.Content = "Conversion Finished!";
+                                                progress.Value = 100;
+                                                closePopup.IsEnabled = true;
+                                                ongoingTask = false;
+                                            }
+                                        });
+
+                                    });
+                                }, probe.Duration)
+                                .ProcessAsynchronously();
+                                }
+                                else if (accelType == 2)
+                                    await FFMpegArguments.FromFileInput(input, true,
+                                     options => options.WithHardwareAcceleration(HardwareAccelerationDevice.Auto))
+                                .OutputToFile(output, true, options => options
+                                    .WithVideoCodec("h264_amf")
+                                    .WithConstantRateFactor(bitrate)
+                                    .WithAudioCodec(AudioCodec.Aac))
+                                .NotifyOnProgress((percentage) =>
+                                {
+                                    Dispatcher.Invoke(() =>
+                                    {
+                                        progress.Value = percentage;
+                                        popupTitle.Content = "Conversion In Progress!";
+                                        status.Content = "Please do not close the app.\nProgress: " + percentage + "%" + "\n(" + (index + 1) + " of " + max + ")";
+
+                                        status.Dispatcher.Invoke(() =>
+                                        {
+                                            if (percentage == 100)
+                                            {
+                                                status.Content = "Finished!" + "\n(" + (index + 1) + " of " + max + ")";
+                                                popupTitle.Content = "Conversion Finished!";
+                                                progress.Value = 100;
+                                                closePopup.IsEnabled = true;
+                                                ongoingTask = false;
+                                            }
+                                        });
+
+                                    });
+                                }, probe.Duration)
+                                .ProcessAsynchronously();
+                                else if (accelType == 3)
+                                    await FFMpegArguments.FromFileInput(input, true,
+                                     options => options.WithHardwareAcceleration(HardwareAccelerationDevice.Auto))
+                                .OutputToFile(output, true, options => options
+                                    .WithVideoCodec("h264_qsv")
+                                    .WithConstantRateFactor(bitrate)
+                                    .WithAudioCodec(AudioCodec.Aac))
+                                .NotifyOnProgress((percentage) =>
+                                {
+                                    Dispatcher.Invoke(() =>
+                                    {
+                                        progress.Value = percentage;
+                                        popupTitle.Content = "Conversion In Progress!";
+                                        status.Content = "Please do not close the app.\nProgress: " + percentage + "%" + "\n(" + (index + 1) + " of " + max + ")";
+
+                                        status.Dispatcher.Invoke(() =>
+                                        {
+                                            if (percentage == 100)
+                                            {
+                                                status.Content = "Finished!" + "\n(" + (index + 1) + " of " + max + ")";
+                                                popupTitle.Content = "Conversion Finished!";
+                                                progress.Value = 100;
+                                                closePopup.IsEnabled = true;
+                                                ongoingTask = false;
+                                            }
+                                        });
+
+                                    });
+                                }, probe.Duration)
+                                .ProcessAsynchronously();
+                                else
+                                    await FFMpegArguments.FromFileInput(input, true)
+                                .OutputToFile(output, true, options => options
+                                    .WithVideoCodec(VideoCodec.LibX264)
+                                    .WithConstantRateFactor(bitrate)
+                                    .WithAudioCodec(AudioCodec.Aac))
+                                .NotifyOnProgress((percentage) =>
+                                {
+                                    Dispatcher.Invoke(() =>
+                                    {
+                                        progress.Value = percentage;
+                                        popupTitle.Content = "Conversion In Progress!";
+                                        status.Content = "Please do not close the app.\nProgress: " + percentage + "%" + "\n(" + (index + 1) + " of " + max + ")";
+
+                                        status.Dispatcher.Invoke(() =>
+                                        {
+                                            if (percentage == 100)
+                                            {
+                                                status.Content = "Finished!" + "\n(" + (index + 1) + " of " + max + ")";
+                                                popupTitle.Content = "Conversion Finished!";
+                                                progress.Value = 100;
+                                                closePopup.IsEnabled = true;
+                                                ongoingTask = false;
+                                            }
+                                        });
+
+                                    });
+                                }, probe.Duration)
+                                .ProcessAsynchronously();
+                                break;
+                            case 1:
+                                if (accelType == 1)
+                                {
+                                    await FFMpegArguments.FromFileInput(input, true,
+                                     options => options.WithHardwareAcceleration(HardwareAccelerationDevice.Auto))
+                                .OutputToFile(output, true, options => options
+                                    .WithVideoCodec("hevc_nvenc")
+                                    .WithConstantRateFactor(bitrate)
+                                    .WithAudioCodec(AudioCodec.Aac))
+                                .NotifyOnProgress((percentage) =>
+                                {
+                                    Dispatcher.Invoke(() =>
+                                    {
+                                        progress.Value = percentage;
+                                        popupTitle.Content = "Conversion In Progress!";
+                                        status.Content = "Please do not close the app.\nProgress: " + percentage + "%" + "\n(" + (index + 1) + " of " + max + ")";
+
+                                        status.Dispatcher.Invoke(() =>
+                                        {
+                                            if (percentage == 100)
+                                            {
+                                                status.Content = "Finished!" + "\n(" + (index + 1) + " of " + max + ")";
+                                                popupTitle.Content = "Conversion Finished!";
+                                                progress.Value = 100;
+                                                closePopup.IsEnabled = true;
+                                                ongoingTask = false;
+                                            }
+                                        });
+
+                                    });
+                                }, probe.Duration)
+                                .ProcessAsynchronously();
+                                }
+                                else if (accelType == 2)
+                                    await FFMpegArguments.FromFileInput(input, true,
+                                     options => options.WithHardwareAcceleration(HardwareAccelerationDevice.Auto))
+                                .OutputToFile(output, true, options => options
+                                    .WithVideoCodec("hevc_amf")
+                                    .WithConstantRateFactor(bitrate)
+                                    .WithAudioCodec(AudioCodec.Aac))
+                                .NotifyOnProgress((percentage) =>
+                                {
+                                    Dispatcher.Invoke(() =>
+                                    {
+                                        progress.Value = percentage;
+                                        popupTitle.Content = "Conversion In Progress!";
+                                        status.Content = "Please do not close the app.\nProgress: " + percentage + "%" + "\n(" + (index + 1) + " of " + max + ")";
+
+                                        status.Dispatcher.Invoke(() =>
+                                        {
+                                            if (percentage == 100)
+                                            {
+                                                status.Content = "Finished!" + "\n(" + (index + 1) + " of " + max + ")";
+                                                popupTitle.Content = "Conversion Finished!";
+                                                progress.Value = 100;
+                                                closePopup.IsEnabled = true;
+                                                ongoingTask = false;
+                                            }
+                                        });
+
+                                    });
+                                }, probe.Duration)
+                                .ProcessAsynchronously();
+                                else if (accelType == 3)
+                                    await FFMpegArguments.FromFileInput(input, true,
+                                     options => options.WithHardwareAcceleration(HardwareAccelerationDevice.Auto))
+                                .OutputToFile(output, true, options => options
+                                    .WithVideoCodec("hevc_qsv")
+                                    .WithConstantRateFactor(bitrate)
+                                    .WithAudioCodec(AudioCodec.Aac))
+                                .NotifyOnProgress((percentage) =>
+                                {
+                                    Dispatcher.Invoke(() =>
+                                    {
+                                        progress.Value = percentage;
+                                        popupTitle.Content = "Conversion In Progress!";
+                                        status.Content = "Please do not close the app.\nProgress: " + percentage + "%" + "\n(" + (index + 1) + " of " + max + ")";
+
+                                        status.Dispatcher.Invoke(() =>
+                                        {
+                                            if (percentage == 100)
+                                            {
+                                                status.Content = "Finished!" + "\n(" + (index + 1) + " of " + max + ")";
+                                                popupTitle.Content = "Conversion Finished!";
+                                                progress.Value = 100;
+                                                closePopup.IsEnabled = true;
+                                                ongoingTask = false;
+                                            }
+                                        });
+
+                                    });
+                                }, probe.Duration)
+                                .ProcessAsynchronously();
+                                else
+                                    await FFMpegArguments.FromFileInput(input, true)
+                                .OutputToFile(output, true, options => options
+                                    .WithVideoCodec(VideoCodec.LibX265)
+                                    .WithConstantRateFactor(bitrate)
+                                    .WithAudioCodec(AudioCodec.Aac))
+                                .NotifyOnProgress((percentage) =>
+                                {
+                                    Dispatcher.Invoke(() =>
+                                    {
+                                        progress.Value = percentage;
+                                        popupTitle.Content = "Conversion In Progress!";
+                                        status.Content = "Please do not close the app.\nProgress: " + percentage + "%" + "\n(" + (index + 1) + " of " + max + ")";
+
+                                        status.Dispatcher.Invoke(() =>
+                                        {
+                                            if (percentage == 100)
+                                            {
+                                                status.Content = "Finished!" + "\n(" + (index + 1) + " of " + max + ")";
+                                                popupTitle.Content = "Conversion Finished!";
+                                                progress.Value = 100;
+                                                closePopup.IsEnabled = true;
+                                                ongoingTask = false;
+                                            }
+                                        });
+
+                                    });
+                                }, probe.Duration)
+                                .ProcessAsynchronously();
+                                break;
+                        }
+                    }
+                    catch (Exception err)
+                    {
+                        exception(err);
+                    }
+                }).Start();
+            }
+        }
+        catch (Exception ex)
+        {
+            ongoingTask = false;
+            cancelTask = true;
+            exception(ex);
+            return;
         }
     }
 
@@ -728,20 +803,58 @@ public partial class MainWindow : Window
 
             // Assuming you have one file that you care about, pass it off to whatever
             // handling code you have defined.
-            if(files.Length > 1)
+            if (files.Length > 1)
             {
-                ContentDialog dialog = new ContentDialog
+                //ContentDialog dialog = new ContentDialog
+                //{
+                //    Title = "Oh nooo!",
+                //    Content = "You can only drop ONE file.\nThis feature is planned for the next update.\nStay tuned!",
+                //    PrimaryButtonText = "Awh okay :<",
+                //    IsPrimaryButtonEnabled = true
+                //};
+                //if(await dialog.ShowAsync() == ContentDialogResult.Primary)
+                //{
+                //    this.AllowDrop = true;
+                //    main.AllowDrop = true;
+                //}
+
+                string extension = System.IO.Path.GetExtension(files[0]).ToLowerInvariant();
+                if (extension == ".mp4" || extension == ".mkv" || extension == ".webm" || extension == ".avi" ||
+           extension == ".mov" || extension == ".flv" || extension == ".wmv" || extension == ".mpeg" ||
+           extension == ".mpg" || extension == ".m4v" || extension == ".3gp" || extension == ".ts" ||
+           extension == ".mts" || extension == ".m2ts" || extension == ".ogv" || extension == ".vob" ||
+           extension == ".rm" || extension == ".rmvb" || extension == ".asf" || extension == ".f4v" ||
+           extension == ".divx" || extension == ".dv" || extension == ".amv" || extension == ".nsv" ||
+           extension == ".mjpeg" || extension == ".mjpg")
                 {
-                    Title = "Oh nooo!",
-                    Content = "You can only drop ONE file.\nThis feature is planned for the next update.\nStay tuned!",
-                    PrimaryButtonText = "Awh okay :<",
-                    IsPrimaryButtonEnabled = true
-                };
-                if(await dialog.ShowAsync() == ContentDialogResult.Primary)
-                {
-                    this.AllowDrop = true;
-                    main.AllowDrop = true;
+                    inPath.Text = "";
+                    foreach (String str in files)
+                    {
+                        inPath.Text += str + "|";
+                    }
+                    if (inPath.Text.EndsWith("|"))
+                    {
+                        inPath.Text = inPath.Text.Substring(0, inPath.Text.Length - 1);
+                    }
                 }
+                else
+                {
+                    ContentDialog dialog = new ContentDialog
+                    {
+                        Title = "Oh nooo!",
+                        Content = "Please only insert video files!\nYou make me sad QwQ.",
+                        PrimaryButtonText = "Awh okay :<",
+                        IsPrimaryButtonEnabled = true
+                    };
+                    if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+                    {
+                        this.AllowDrop = true;
+                        main.AllowDrop = true;
+                    }
+                    return;
+                }
+                this.AllowDrop = true;
+                main.AllowDrop = true;
                 return;
             }
             else
@@ -814,7 +927,8 @@ public partial class MainWindow : Window
 
     public void showProgress(int type = 0)
     {
-        switch (type){
+        switch (type)
+        {
             case 0:
                 popupTitle.Content = "Conversion In Progress";
                 status.Content = "Setting up the FFmpeg Instance...";
